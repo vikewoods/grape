@@ -778,5 +778,46 @@ describe Grape::API do
         last_response.body.should == 'MOUNTED'
       end
     end
+
+    context 'with another Grape API' do
+      class ExampleProtectedAPI < Grape::API
+        get '/protected' do
+          "YOU'RE IN!"
+        end
+      end
+
+      class ExampleV1API < Grape::API
+        get "/old" do
+          "YOU'RE OLD! #{version}"
+        end
+      end
+
+      before do
+        subject.scope :v1 do
+          version :v1
+          mount ExampleV1API => '/'
+        end
+
+        subject.scope :authenticated do
+          before do
+            error!("Not Authorized", 401) unless params[:authorized] == 'true'
+          end
+          mount ExampleProtectedAPI => '/private'
+        end
+      end
+
+      it 'should be able to access the old API namespaced properly' do
+        get '/v1/old'
+        last_response.body.should == "YOU'RE OLD! v1"
+      end
+
+      it 'should run before filters that are inherited' do
+        get '/private/protected'
+        last_response.status.should == 401
+        get '/private/protected?authorized=true'
+        last_response.status.should == 200
+        last_response.body.should == "YOU'RE IN!"
+      end
+    end
   end
 end

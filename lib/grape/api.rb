@@ -188,6 +188,11 @@ module Grape
       def mount(mounts)
         mounts.each_pair do |app, path|
           next unless app.respond_to?(:call)
+          
+          if app.is_a?(Class) && app < Grape::API
+            app.inherit(settings_stack)
+          end
+
           route_set.add_route(app, 
             path_info: compile_path(path, false)
           )
@@ -357,7 +362,12 @@ module Grape
       def inherited(subclass)
         subclass.reset!
       end
-      
+
+      def inherit(other_stack)
+        settings_stack.unshift *other_stack
+        raise settings_stack.inspect
+      end
+
       def route_set
         @route_set ||= Rack::Mount::RouteSet.new
       end
