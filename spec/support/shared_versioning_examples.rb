@@ -1,4 +1,13 @@
 shared_examples_for "versioning" do
+  it 'should version for the root path' do
+    subject.version 'v1', macro_options
+    subject.get do
+      "Version: #{request.env['api.version']}"
+    end
+    versioned_get '/', 'v1', macro_options
+    last_response.body.should eql "Version: v1"
+  end
+
   it 'should set the API version' do
     subject.version 'v1', macro_options
     subject.get :hello do
