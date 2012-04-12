@@ -10,5 +10,4 @@ group :development, :test do
   gem 'rb-fsevent'
   gem 'growl'
   gem 'json'
-  gem 'debugger'
 end
