@@ -268,7 +268,7 @@ describe Grape::Endpoint do
         redirect "/ha", :permanent => true
       end
       get '/hey'
-      last_response.status.should eq 304
+      last_response.status.should eq 301
       last_response.headers['Location'].should eq "/ha"
       last_response.body.should eq ""
     end
@@ -345,6 +345,20 @@ describe Grape::Endpoint do
       end
       get '/example'
       last_response.body.should == 'Hiya'
+    end
+
+    it 'should automatically use Klass::Entity if that exists' do
+      some_model = Class.new
+      entity = Class.new(Grape::Entity)
+      entity.stub!(:represent).and_return("Auto-detect!")
+
+      some_model.const_set :Entity, entity
+
+      subject.get '/example' do
+        present some_model.new
+      end
+      get '/example'
+      last_response.body.should == 'Auto-detect!'
     end
 
     it 'should add a root key to the output if one is given' do
