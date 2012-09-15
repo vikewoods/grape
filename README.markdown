@@ -214,12 +214,17 @@ end
 
 ## Parameter Validation and Coercion
 
-You can define validations and coercion options for your parameters using `params`.
+You can define validations and coercion options for your parameters using a `params` block.
 
 ```ruby
 params do
   requires :id, type: Integer
   optional :name, type: String, regexp: /^[a-z]+$/
+
+  group :user do
+    requires :first_name
+    requires :last_name
+  end
 end
 get ':id' do
   # params[:id] is an Integer
@@ -228,6 +233,9 @@ end
 
 When a type is specified an implicit validation is done after the coercion to ensure 
 the output type is the one declared.
+
+Parameters can be nested using `group`. In the above example, this means both
+`params[:user][:first_name]` and `params[:user][:last_name]` are required next to `params[:id]`.
 
 ### Namespace Validation and Coercion
 Namespaces allow parameter definitions and apply to every method within the namespace.
@@ -252,10 +260,10 @@ end
 
 ### Custom Validators
 ```ruby
-class doit < Grape::Validations::Validator
+class AlphaNumeric < Grape::Validations::Validator
   def validate_param!(attr_name, params)
-    unless params[attr_name] == 'im custom'
-      throw :error, :status => 400, :message => "#{attr_name}: is not custom!"
+    unless params[attr_name] =~ /^[[:alnum:]]+$/
+      throw :error, :status => 400, :message => "#{attr_name}: must consist of alpha-numeric characters"
     end    
   end
 end  
@@ -263,11 +271,11 @@ end
 
 ```ruby
 params do
-  requires :name, :doit => true
+  requires :username, :alpha_numeric => true
 end
 ```
 
-You can also create custom classes that take additional parameters
+You can also create custom classes that take parameters
 ```ruby
 class Length < Grape::Validations::SingleOptionValidator
   def validate_param!(attr_name, params)
@@ -282,6 +290,20 @@ end
 params do
   requires :name, :length => 5
 end
+```
+
+### Validation Errors
+When validation and coercion erros occur an exception of type `ValidationError` is raised.
+If the exception goes uncaught it will respond with a status of 400 and an error message.
+You can rescue a `ValidationError` and respond with a custom response.
+```ruby
+rescue_from ValidationError do |e|
+    Rack::Response.new({
+        'status' => e.status,
+        'message' => e.message,
+        'param' => e.param
+    }.to_json, e.status)    
+end 
 ```
 
 
@@ -604,6 +626,27 @@ module API
 end
 ```
 
+#### Using the Exposure DSL
+
+Grape ships with a DSL to easily define entities within the context
+of an existing class:
+
+```ruby
+class User
+  include Grape::Entity::DSL
+
+  entity :name, :email do
+    expose :advanced, if: :conditional
+  end
+end
+```
+
+The above will automatically create a `User::Entity` class and
+define properties on it according to the same rules as above. If
+you only want to define simple exposures you don't have to supply
+a block and can instead simply supply a list of comma-separated
+symbols.
+
 ### Using Entities
 
 Once an entity is defined, it can be used within endpoints, by calling #present. The #present
@@ -628,6 +671,32 @@ module API
   end
 end
 ```
+
+### Entity Organization
+
+In addition to separately organizing entities, it may be useful to
+put them as namespaced classes underneath the model they represent.
+For example:
+
+```ruby
+class User
+  def entity
+    Entity.new(self)
+  end
+
+  class Entity < Grape::Entity
+    expose :name, :email
+  end
+end
+```
+
+If you organize your entities this way, Grape will automatically
+detect the `Entity` class and use it to present your models. In
+this example, if you added `present User.new` to your endpoint,
+Grape would automatically detect that there is a `User::Entity`
+class and use that as the representative entity. This can still
+be overridden by using the `:with` option or an explicit
+`represents` call.
 
 ### Caveats
 

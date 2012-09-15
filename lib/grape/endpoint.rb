@@ -159,7 +159,7 @@ module Grape
     def redirect(url, options = {})
       merged_options = {:permanent => false }.merge(options)
       if merged_options[:permanent]
-        status 304
+        status 301
       else
         if env['HTTP_VERSION'] == 'HTTP/1.1' && request.request_method.to_s.upcase != "GET"
           status 303
@@ -255,6 +255,8 @@ module Grape
         entity_class ||= (settings[:representations] || {})[potential]
       end
 
+      entity_class ||= object.class.const_get(:Entity) if object.class.const_defined?(:Entity)
+
       root = options.delete(:root)
 
       representation = if entity_class
@@ -291,11 +293,12 @@ module Grape
       self.extend helpers
       cookies.read(@request)
 
+      run_filters befores
+
       Array(settings[:validations]).each do |validator|
         validator.validate!(params)
       end
 
-      run_filters befores
       response_text = instance_eval &self.block
       run_filters afters
       cookies.write(header)
